@@ -1,0 +1,112 @@
+./src/file_tree.rsuse std::io::Write;
+
+#[derive(Debug)]
+pub struct File  {
+    pub name: String,
+    pub data: Vec<u8>,
+}   
+
+#[derive(Debug)]
+pub struct Directory {
+    pub     name: String,
+    pub     entries: Vec<File>,
+    pub     diretory: Vec<Directory>,
+}
+
+impl File {
+    pub fn new(name: String, data: Vec<u8>) -> File {
+        File {
+            name,
+            data,
+        }
+    }
+}
+
+impl Directory {
+    pub fn new(name: String) -> Directory {
+        Directory {
+            name,
+            entries: Vec::new(),
+            diretory: Vec::new(),
+        }
+    }
+
+    fn add_file(&mut self, file: File) {
+        self.entries.push(file);
+    }
+
+    fn add_directory(&mut self, directory: Directory) {
+        self.diretory.push(directory);
+    }
+
+    fn list(&self) {
+        println!("Directory: {}", self.name);
+        for file in &self.entries {
+            println!("File: {}", file.name);
+        }
+        for directory in &self.diretory {
+            directory.list();
+        }
+    }
+
+    fn find(&self, name: &str) -> Option<&File> {
+        for file in &self.entries {
+            if file.name == name {
+                return Some(file);
+            }
+        }
+        for directory in &self.diretory {
+            match directory.find(name) {
+                Some(file) => return Some(file),
+                None => (),
+            }
+        }
+        None
+    }
+
+    pub fn map_directory(&mut self, dir_location:String) -> Directory {
+        let mut new_dir = Directory::new(dir_location);
+        let directory_content = std::fs::read_dir(&new_dir.name).expect("Failed to read directory are you sure it exists?");
+
+        for content in directory_content {
+            let content = content.expect("Failed to read directory content");
+            let content_path = content.path();
+            
+            // Recursion is so cool
+            if content_path.is_dir(){
+                let mut new_dir = Directory::new(content_path.to_str().unwrap().to_string());
+                new_dir.map_directory(content_path.to_str().unwrap().to_string());
+                self.add_directory(new_dir);
+            }
+
+            if content_path.is_file() {
+                self.add_file(File::new(content_path.to_str().unwrap().to_string(), std::fs::read(content_path).expect("Failed to read file")));
+            }
+        }
+
+        new_dir
+    }
+
+    pub fn write_tree_to_file(&self) {
+        let mut file = std::fs::File::create("file_tree.txt").expect("Failed to create file");
+        for file_data in &self.entries {
+            file.write_all(file_data.name.as_bytes()).expect("Failed to write to file");
+            file.write_all(&file_data.data.as_slice());
+        }
+    }
+}
+./src/main.rsmod file_tree;
+use file_tree::Directory;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+pub struct Args {
+    #[arg(short, long)]
+    pub dir: String,
+}
+
+fn main() {
+    let mut directory = Directory::new(Args::parse().dir);
+    directory.map_directory(Args::parse().dir);
+    directory.write_tree_to_file();
+}
