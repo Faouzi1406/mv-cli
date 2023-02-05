@@ -14,8 +14,5 @@ pub struct Args {
 fn main() {
     let mut directory = Directory::new(Args::parse().dir);
     directory.map_directory(Args::parse().dir);
-    
-    
-    // list all directory and its directory and recursive
-    directory.list();
+    directory.move_files(Args::parse().move_dir);
 }
